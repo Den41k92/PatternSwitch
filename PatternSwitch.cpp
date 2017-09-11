@@ -103,10 +103,10 @@ void PatternSwitch::startRecord ()
 
 void PatternSwitch::stopRecord ()
 {	
+	dispatchEvent (RECORDED);
 	recording = false;
 	len = pos;
 	reset();
-	dispatchEvent (RECORDED);
 	/*
 	Serial << "record ok\n";
 	Serial << "Len: " << len << ", Raw: [ ";
@@ -142,19 +142,23 @@ void PatternSwitch::dispatchEvent (event_t ev)
 		event_handler (ev);
 }
 
-void PatternSwitch::saveToEEPROM (uint8_t base_addr)
+boolean PatternSwitch::saveToEEPROM (uint8_t base_addr)
 {
-	if (255 - base_addr > len)
-		for (uint8_t i=0; i < len; i++)
-			EEPROM.write(base_addr + i + 1, timetable[i]);
+	if (255 - base_addr <= len)
+		return false;
+	for (uint8_t i=0; i < len; i++)
+		EEPROM.write(base_addr + i + 1, timetable[i]);
+	return true;
 }
 
-void PatternSwitch::loadFromEEPROM (uint8_t base_addr)
+boolean PatternSwitch::loadFromEEPROM (uint8_t base_addr)
 {
 	len = EEPROM.read(base_addr);
-	if (255 - base_addr > len)
-		for (uint8_t i=0; i < len; i++)
-			timetable[i] = EEPROM.read(base_addr + i + 1);
+	if (255 - base_addr <= len || len == 0  || len == 0xff)
+		return false;
+	for (uint8_t i=0; i < len; i++)
+		timetable[i] = EEPROM.read(base_addr + i + 1);
+	return true;
 }
 
 void PatternSwitch::setEvent (void (*func)(event_t ev))

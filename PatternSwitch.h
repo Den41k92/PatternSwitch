@@ -31,8 +31,8 @@ class PatternSwitch
 		void stopRecord ();	// optional as well (timeout)
 
 		// EEPROM 
-		void saveToEEPROM (uint8_t base_addr = 0);
-		void loadFromEEPROM (uint8_t base_addr = 0);
+		boolean saveToEEPROM (uint8_t base_addr = 0);
+		boolean loadFromEEPROM (uint8_t base_addr = 0);
 
 		enum event_t {
 			SUCCESS,
