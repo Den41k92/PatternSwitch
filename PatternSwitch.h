@@ -3,7 +3,7 @@
 #define PATTERNSWITCH_H
 
 #define PATTERN_RESOLUTION_MS 	10  // 255 * 10 = 2,55 sec. max delay
-#define PATTERN_SIZE 32
+#define PATTERN_SIZE 48
 
 #include <Arduino.h>
 #include <EEPROM.h>
@@ -19,10 +19,11 @@ class PatternSwitch
 		// callback events
 		void onSuccess (void (*func)());
 		void onFail (void (*func)());
+		void onTimeout (void (*func)());
 		void onRecordComplete (void (*func)());
 
-
 		uint8_t getProgress();  // returns trigger counter value
+		uint8_t getLength();	// returns pattern length
 
 		void reset ();		// optional - reset occurs automatically after timeout
 
@@ -53,6 +54,7 @@ class PatternSwitch
 		void (*event_success)();
 		void (*event_fail)();
 		void (*event_record_complete)();
+		void (*event_timeout)();
 		void (*event_handler)(event_t);
 
 		void dispatchEvent (event_t ev);

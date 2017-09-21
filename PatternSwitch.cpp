@@ -13,6 +13,7 @@ PatternSwitch::PatternSwitch (uint16_t timeout_ms, uint8_t tollerance)
 
 	len = 0;
 	recording = false;
+	reset();
 }
 
 
@@ -35,7 +36,6 @@ void PatternSwitch::trigger()
 			return;
 
 		k_speed = (float) timetable[pos++] / diff;
-		//Serial << "Begin pattern. diff: " << diff << ", k_speed : " << k_speed << "\n";
 		return;
 	}
 	// next triggers : compare intervals to timetable
@@ -45,7 +45,7 @@ void PatternSwitch::trigger()
 		// recording mode
 		timetable[pos++] = diff;
 		if (diff >= ck_timeout || pos >= PATTERN_SIZE)
-			stopRecord();	
+			stopRecord();			
 	}
 	else
 	{	
@@ -65,8 +65,6 @@ void PatternSwitch::trigger()
 		else
 		{
 			dispatchEvent (FAIL);
-			//Serial << "Pattern mismatch: \n";
-			//Serial << "Expected: " << timetable[pos-1] << "(+/-" << ck_toll << "), got: " << diff;
 			reset();
 		}
 	}
@@ -77,15 +75,25 @@ uint8_t PatternSwitch::getProgress()
 	return counter;
 }
 
+uint8_t PatternSwitch::getLength()
+{
+	return len;
+}
+
 void PatternSwitch::loop()
 {
+	
 	if (counter > 0 && (uint32_t (millis() / PATTERN_RESOLUTION_MS) - ck_last > ck_timeout))
 	{
-		dispatchEvent (counter == 1 ? TIMEOUT : FAIL);
-		if (recording)
+		if (recording && counter > 1)
 			stopRecord();
-		reset();
+		else if (!recording)
+		{
+			dispatchEvent (counter == 1 ? TIMEOUT : FAIL);
+			reset();
+		}
 	}
+	
 }
 
 void PatternSwitch::reset()
@@ -103,17 +111,10 @@ void PatternSwitch::startRecord ()
 
 void PatternSwitch::stopRecord ()
 {	
-	dispatchEvent (RECORDED);
-	recording = false;
 	len = pos;
+	recording = false;
+	dispatchEvent (RECORDED);
 	reset();
-	/*
-	Serial << "record ok\n";
-	Serial << "Len: " << len << ", Raw: [ ";
-	for (uint8_t i=0; i < len; i++)
-		Serial << timetable[i] << ", ";
-	Serial << " ]\n";
-	*/
 }
 
 
@@ -135,7 +136,8 @@ void PatternSwitch::dispatchEvent (event_t ev)
 				event_record_complete();
 			break;
 		case TIMEOUT:
-			//Serial << "\nreset by timeout\n";
+			if (event_timeout != NULL)
+				event_timeout();
 			break;
 	}
 	if (event_handler != NULL)
@@ -144,20 +146,19 @@ void PatternSwitch::dispatchEvent (event_t ev)
 
 boolean PatternSwitch::saveToEEPROM (uint8_t base_addr)
 {
-	if (255 - base_addr <= len)
+	if (len > 255 - base_addr)
 		return false;
-	for (uint8_t i=0; i < len; i++)
-		EEPROM.write(base_addr + i + 1, timetable[i]);
+	EEPROM.write(base_addr, len);
+	EEPROM.put (base_addr + 1, timetable);
 	return true;
 }
 
 boolean PatternSwitch::loadFromEEPROM (uint8_t base_addr)
 {
 	len = EEPROM.read(base_addr);
-	if (255 - base_addr <= len || len == 0  || len == 0xff)
+	if (len > 255 - base_addr || len == 0  || len == 0xff)
 		return false;
-	for (uint8_t i=0; i < len; i++)
-		timetable[i] = EEPROM.read(base_addr + i + 1);
+	EEPROM.get (base_addr + 1, timetable);
 	return true;
 }
 
@@ -180,3 +181,9 @@ void PatternSwitch::onRecordComplete (void (*func)())
 {
 	event_record_complete = func;
 }
+
+void PatternSwitch::onTimeout (void (*func)())
+{
+	event_timeout = func;
+}
+
