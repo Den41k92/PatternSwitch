@@ -1,10 +1,9 @@
-
 #include "PatternSwitch.h"
 
-PatternSwitch::PatternSwitch (uint16_t timeout_ms, uint8_t tollerance)
+PatternSwitch::PatternSwitch(uint16_t timeout_ms, uint8_t tollerance)
 {
 	ck_timeout = timeout_ms / PATTERN_RESOLUTION_MS;
-	this -> tollerance = tollerance;
+	this->tollerance = tollerance;
 
 	event_success = NULL;
 	event_fail = NULL;
@@ -23,7 +22,7 @@ void PatternSwitch::trigger()
 	uint32_t diff = ck - ck_last;
 	ck_last = ck;
 	//Serial << " d:" << diff << " ";
-	counter ++;
+	counter++;
 
 	// ignore first trigger
 	if (counter == 1)
@@ -35,20 +34,20 @@ void PatternSwitch::trigger()
 		if (len < 2)
 			return;
 
-		k_speed = (float) timetable[pos++] / diff;
+		k_speed = (float)timetable[pos++] / diff;
 		return;
 	}
 	// next triggers : compare intervals to timetable
 
 	if (recording)
-	{	
+	{
 		// recording mode
 		timetable[pos++] = diff;
 		if (diff >= ck_timeout || pos >= PATTERN_SIZE)
-			stopRecord();			
+			stopRecord();
 	}
 	else
-	{	
+	{
 		// listening mode
 		uint8_t val = timetable[pos++];
 		diff *= k_speed;
@@ -58,13 +57,13 @@ void PatternSwitch::trigger()
 		{
 			if (pos == len)
 			{
-				dispatchEvent (SUCCESS);
+				dispatchEvent(SUCCESS);
 				reset();
 			}
 		}
 		else
 		{
-			dispatchEvent (FAIL);
+			dispatchEvent(FAIL);
 			reset();
 		}
 	}
@@ -82,18 +81,18 @@ uint8_t PatternSwitch::getLength()
 
 void PatternSwitch::loop()
 {
-	
-	if (counter > 0 && (uint32_t (millis() / PATTERN_RESOLUTION_MS) - ck_last > ck_timeout))
+
+	if (counter > 0 && (uint32_t(millis() / PATTERN_RESOLUTION_MS) - ck_last > ck_timeout))
 	{
 		if (recording && counter > 1)
 			stopRecord();
 		else if (!recording)
 		{
-			dispatchEvent (counter == 1 ? TIMEOUT : FAIL);
+			dispatchEvent(counter == 1 ? TIMEOUT : FAIL);
 			reset();
 		}
 	}
-	
+
 }
 
 void PatternSwitch::reset()
@@ -102,87 +101,113 @@ void PatternSwitch::reset()
 	pos = 0;
 }
 
-void PatternSwitch::startRecord ()
+void PatternSwitch::startRecord()
 {
 	len = 0;
 	recording = true;
 	reset();
 }
 
-void PatternSwitch::stopRecord ()
-{	
+void PatternSwitch::stopRecord()
+{
 	len = pos;
 	recording = false;
-	dispatchEvent (RECORDED);
+	dispatchEvent(RECORDED);
 	reset();
 }
 
 
 
-void PatternSwitch::dispatchEvent (event_t ev)
+void PatternSwitch::dispatchEvent(event_t ev)
 {
 	switch (ev)
 	{
-		case SUCCESS:
-			if (event_success != NULL)
-				event_success();
-			break;
-		case FAIL:
-			if (event_fail != NULL)
-				event_fail();
-			break;
-		case RECORDED:
-			if (event_record_complete != NULL)
-				event_record_complete();
-			break;
-		case TIMEOUT:
-			if (event_timeout != NULL)
-				event_timeout();
-			break;
+	case SUCCESS:
+		if (event_success != NULL)
+			event_success();
+		break;
+	case FAIL:
+		if (event_fail != NULL)
+			event_fail();
+		break;
+	case RECORDED:
+		if (event_record_complete != NULL)
+			event_record_complete();
+		break;
+	case TIMEOUT:
+		if (event_timeout != NULL)
+			event_timeout();
+		break;
 	}
 	if (event_handler != NULL)
-		event_handler (ev);
+		event_handler(ev);
 }
 
-boolean PatternSwitch::saveToEEPROM (uint8_t base_addr)
+boolean PatternSwitch::saveToEEPROM(uint8_t base_addr)
 {
 	if (len > 255 - base_addr)
 		return false;
 	EEPROM.write(base_addr, len);
-	EEPROM.put (base_addr + 1, timetable);
+	EEPROM.put(base_addr + 1, timetable);
 	return true;
 }
 
-boolean PatternSwitch::loadFromEEPROM (uint8_t base_addr)
+boolean PatternSwitch::loadFromEEPROM(uint8_t base_addr)
 {
 	len = EEPROM.read(base_addr);
-	if (len > 255 - base_addr || len == 0  || len == 0xff)
+	if (len > 255 - base_addr || len == 0 || len == 0xff)
 		return false;
-	EEPROM.get (base_addr + 1, timetable);
+	EEPROM.get(base_addr + 1, timetable);
 	return true;
 }
 
-void PatternSwitch::setEvent (void (*func)(event_t ev))
+void PatternSwitch::set_timetable(uint8_t* times, unsigned int size)
+{
+	unsigned int times_count = 0;//counts all non_zero terms in arrey
+	for (size_t i = 0; i < size; i++)
+	{
+		times_count++;
+		if (times[i] == 0)
+			break;
+	}
+	if (times_count > PATTERN_SIZE)
+		return;//error in input so no change in timetable
+	for (size_t i = 0; i < times_count; i++)
+	{
+		timetable[i] = times[i];
+	}
+	for (size_t i = times_count; i < PATTERN_SIZE - times_count; i++)
+	{
+		timetable[i] = 0;//to clean any residual data
+	}
+}
+
+uint8_t* PatternSwitch::get_timetable()
+{
+	return timetable;
+}
+
+void PatternSwitch::setEvent(void(*func)(event_t ev))
 {
 	event_handler = func;
 }
 
-void PatternSwitch::onSuccess (void (*func)())
+void PatternSwitch::onSuccess(void(*func)())
 {
 	event_success = func;
 }
 
-void PatternSwitch::onFail (void (*func)())
+void PatternSwitch::onFail(void(*func)())
 {
 	event_fail = func;
 }
 
-void PatternSwitch::onRecordComplete (void (*func)())
+void PatternSwitch::onRecordComplete(void(*func)())
 {
 	event_record_complete = func;
 }
 
-void PatternSwitch::onTimeout (void (*func)())
+void PatternSwitch::onTimeout(void(*func)())
 {
 	event_timeout = func;
 }
